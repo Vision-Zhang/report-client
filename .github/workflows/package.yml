@@ -1,0 +1,60 @@
+name: Build packages
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust beta
+        run: rustup toolchain install beta --profile minimal
+
+      - name: Build Windows package
+        shell: pwsh
+        run: ./scripts/bundle-windows.ps1
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-client-windows
+          path: target/bundle/Report-Client-*.zip
+          if-no-files-found: error
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            architecture: arm64
+          - runner: macos-15-intel
+            architecture: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust beta
+        run: rustup toolchain install beta --profile minimal
+
+      - name: Build macOS application
+        run: |
+          export DEVELOPER_DIR="$(xcode-select -p)"
+          ./scripts/bundle-macos.sh
+
+      - name: Archive macOS application
+        run: ditto -c -k --sequesterRsrc --keepParent "target/bundle/Report Client.app" "target/bundle/Report-Client-macos.zip"
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-client-macos-${{ matrix.architecture }}
+          path: target/bundle/Report-Client-macos.zip
+          if-no-files-found: error
